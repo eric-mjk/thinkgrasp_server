@@ -1,0 +1,9 @@
+import socket
+
+SERVER_IP = "192.168.0.11"  # local computer's IP
+PORT = 5050
+
+with socket.create_connection((SERVER_IP, PORT), timeout=5.0) as s:
+    print(f"Connected to {SERVER_IP}:{PORT}")
+    msg = s.recv(64)
+    print(f"Received: {msg.decode()}")
