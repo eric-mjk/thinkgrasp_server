@@ -29,11 +29,15 @@ Available images: `ericmjk/panda_ws:vanilla`, `ericmjk/panda_ws:latest`, `ericmj
 ```
 /workspace/   (= ~/Eric/thinkgrasp_server on host)
   thinkgrasp/
-    ThinkGrasp/     ← Vision-language grasp detection system (forked submodule)
-    run.sh          ← entry point script
-    simulation_main_with_viewer.py
+    ThinkGrasp/           ← Vision-language grasp detection system (forked submodule)
+    run.sh                ← sets CUDA env vars; source before running ThinkGrasp
+    simulation_main_with_viewer.py   ← simulation entry point with Matplotlib viewer
     sim_main_w_gui.ipynb
     simulation_main_interactive.ipynb
+  ClientServerTests/      ← minimal socket test scripts (connectivity smoke tests)
+    test_server.py        ← binds PORT 5050, accepts one connection, sends "hello"
+    test_client.py        ← connects to a server IP:5050, prints received message
+    ClientServerTutorial.md
 ```
 
 Initialize the submodule with:
@@ -158,9 +162,83 @@ Python client library (`ros2_ws/src/pymoveit2/`) providing async MoveIt 2 interf
 
 Vision-language grasp detection system (`thinkgrasp/ThinkGrasp/`) — CoRL 2024. Uses LangSAM for segmentation and FGC-GraspNet for 6-DOF grasp pose estimation. Runs in PyBullet simulation or real-world via Flask API.
 
-When populated:
-- **CUDA environment** required — set `CUDA_HOME=/usr/local/cuda-11.8`, add `$CUDA_HOME/bin` to `PATH` and `$CUDA_HOME/lib64` to `LD_LIBRARY_PATH` before running.
-- **Asset issue**: Many `unseen_objects_40` URDFs were patched to replace missing `textured.obj` with available collision meshes. See `thinkgrasp_edits.txt` for the full patch log. To properly fix, re-download assets from the ThinkGrasp HuggingFace dataset.
+**CUDA environment** — source `thinkgrasp/run.sh` or set manually before running any ThinkGrasp script:
+```bash
+source /workspace/thinkgrasp/run.sh
+conda activate thinkgrasp
+```
+
+**Required env vars for real-robot server**:
+```bash
+export OPENAI_API_KEY="sk-..."           # GPT-4o is called for scene/object analysis
+export THINKGRASP_SHOW_MATPLOTLIB=1      # set to 0 to skip matplotlib visualizations
+export THINKGRASP_SHOW_OPEN3D=0          # set to 1 to save Open3D point cloud renders
+export THINKGRASP_CHECKPOINT_GRASP_PATH="logs/checkpoint_fgc.tar"
+```
+
+**Simulation** (runs in PyBullet, from `/workspace/thinkgrasp/ThinkGrasp/`):
+```bash
+wandb login
+export OPENAI_API_KEY="sk-..."
+python simulation_main.py --gui      # or use simulation_main_with_viewer.py for Matplotlib UI
+```
+Assets required in `ThinkGrasp/assets/`: `unseen_objects_40/` (download from HuggingFace, not Google Drive). Many URDFs were patched to replace missing `textured.obj` — see `thinkgrasp_edits.txt` for the patch log.
+
+**Real-robot Flask server** (port 5000, from `/workspace/thinkgrasp/ThinkGrasp/`):
+
+There are three server entry points:
+
+| Script | Input method | Use case |
+|---|---|---|
+| `realarm.py` | JSON body with file paths on server disk | original, paths must exist on server |
+| `realarm_server_safe.py` | same as above | adds `THINKGRASP_SHOW_*` env var guards |
+| `realarm_upload_server.py` | multipart form upload (`image`, `depth`, `text` fields) | client sends files over HTTP; no shared filesystem needed |
+
+All three expose `POST /grasp_pose` → returns `{"xyz": [...], "rot": [[...]], "dep": ...}`.
+`realarm_upload_server.py` additionally exposes `GET /health`.
+
+```bash
+# Standard start (run from ThinkGrasp/)
+python realarm_upload_server.py
+
+# Kill if needed
+ps aux | grep realarm
+kill -9 <PID>
+```
+
+Ray is initialized with `num_gpus=2`; LangSAM actor is allocated 0.8 GPU. If only one GPU is available, edit `realarm_server_safe.py` to `ray.init(num_gpus=1)`.
+
+### Client-Server Architecture (Local ↔ Server)
+
+The real-robot workflow splits across two machines:
+
+```
+Local PC (client)                      Server PC (GPU host)
+  Camera (RealSense D4xx)  ──────────────▶  ThinkGrasp Flask server (port 5000)
+  Robot (Panda via ROS2)                     returns grasp pose (xyz, rot, dep)
+  pymoveit2 execution  ◀── grasp pose ──────
+```
+
+**Raw socket protocol** (used in `ClientServerTests/` and working examples in `ClientServerTutorial.md`):
+```
+[4 bytes big-endian uint32: metadata JSON length]
+[N bytes: UTF-8 JSON metadata]
+[4 bytes: payload length]  (or 8 bytes for rgb+depth: rgb_len, depth_len)
+[payload bytes]
+```
+The server responds with `[4 bytes: result length][result JSON bytes]`.
+
+**Connectivity test**:
+```bash
+# On server
+python3 /workspace/ClientServerTests/test_server.py
+
+# On local PC
+# Edit SERVER_IP in test_client.py, then:
+python3 /workspace/ClientServerTests/test_client.py
+```
+
+**Working real-robot client** pattern (see `ClientServerTutorial.md`): RealSense frames are JPEG-encoded for bandwidth, depth is sent as raw `uint16` bytes, joint state / FK pose are included in JSON metadata. The local client uses `pymoveit2` to execute the returned grasp pose.
 
 ## Critical Dependencies — Do Not Corrupt
 

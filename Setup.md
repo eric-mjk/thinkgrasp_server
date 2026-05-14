@@ -16,8 +16,8 @@ docker run -it -d --net=host --ipc=host \
   -v /tmp/.X11-unix:/tmp/.X11-unix:rw \
   --gpus all\
   --privileged\
-  --name eric_panda\
-  -v ~/Eric/panda_ws:/workspace \
+  --name eric_thinkgrasp\
+  -v ~/Eric/thinkgrasp_server:/workspace \
   ericmjk/panda_thinkgrasp:sim
 
   
