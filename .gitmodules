@@ -1,4 +1,0 @@
-[submodule "thinkgrasp/ThinkGrasp"]
-	path = thinkgrasp/ThinkGrasp
-	url = https://github.com/eric-mjk/_forked_ThinkGrasp.git
-	branch = main
