@@ -26,7 +26,7 @@ docker run -it -d \
   -e DISPLAY=$DISPLAY \
   -v /tmp/.X11-unix:/tmp/.X11-unix:rw \
   -v ~/Eric/thinkgrasp_server:/workspace \
-  ericmjk/panda_ws:thinkgrasp
+  ericmjk/panda_thinkgrasp:sim
 ```
 
 ### 3. Set up environment (inside container)
