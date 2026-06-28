@@ -22,7 +22,7 @@ docker run -it -d \
   --privileged \
   -v /dev:/dev \
   -v /dev/bus/usb:/dev/bus/usb \
-  --name thinkgrasp \
+  --name eric_thinkgrasp \
   -e DISPLAY=$DISPLAY \
   -v /tmp/.X11-unix:/tmp/.X11-unix:rw \
   -v ~/Eric/thinkgrasp_server:/workspace \
