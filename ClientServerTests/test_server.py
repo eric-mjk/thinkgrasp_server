@@ -1,6 +1,8 @@
 import socket
 
+# HOST = "0.0.0.0" <- accept connections from any network interface
 HOST = "0.0.0.0"
+# Always match the port number between client <-> server
 PORT = 5050
 
 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
